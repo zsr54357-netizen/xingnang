@@ -1,0 +1,30 @@
+# Toolchain and build output
+.toolchain/
+.android/
+android/build-out/
+android/.gradle/
+android/app/build/
+android/app/src/main/assets/index.html
+
+# APK / signing
+*.apk
+*.aab
+*.idsig
+*.keystore
+*.jks
+local.properties
+
+# Local test artifacts
+.chrome*/
+.test*/
+*.log
+__pycache__/
+*.pyc
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Not part of the 行囊 app repository
+出差提报费用计算/
+下载/
