@@ -3,7 +3,7 @@
 这是 `行囊` 的 Android debug 安装壳，不包含正式发布签名，也不用于应用商店。
 
 - 包名：`com.xingnang.packing`
-- 版本：`1.0.0` / `versionCode 1`
+- 版本：`1.0.1` / `versionCode 2`
 - 最低 Android：10（API 29）
 - 目标 Android：14（API 34）
 - 不申请网络权限
@@ -29,7 +29,7 @@
 构建产物：
 
 ```text
-android/build-out/行囊-debug-1.0.0.apk
+android/build-out/行囊-debug-1.0.1.apk
 ```
 
 这只是 debug APK。它不会提交到 Git，也不适合公开分发。

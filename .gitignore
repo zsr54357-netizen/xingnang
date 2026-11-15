@@ -15,6 +15,7 @@ android/app/src/main/assets/index.html
 local.properties
 
 # Local test artifacts
+.adb-check/
 .chrome*/
 .test*/
 *.log

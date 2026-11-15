@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -12,6 +13,7 @@ import android.os.Environment;
 import android.provider.MediaStore;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -28,7 +30,8 @@ import java.util.Locale;
 public class MainActivity extends Activity {
     private static final String APP_URL = "file:///android_asset/index.html";
     private static final int FILE_CHOOSER_REQUEST = 1001;
-    private static final String BACKGROUND = "#F7F1E8";
+    private static final String LIGHT_BACKGROUND = "#F6F2EB";
+    private static final String DARK_BACKGROUND = "#100F0D";
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
@@ -39,15 +42,14 @@ public class MainActivity extends Activity {
 
         Window window = getWindow();
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-        window.setStatusBarColor(Color.parseColor(BACKGROUND));
-        window.setNavigationBarColor(Color.parseColor(BACKGROUND));
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        window.getDecorView().setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-        );
+        boolean systemDark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+            == Configuration.UI_MODE_NIGHT_YES;
+        applySystemBars(systemDark);
 
+        WebView.setWebContentsDebuggingEnabled(true);
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.parseColor(BACKGROUND));
+        webView.setBackgroundColor(Color.parseColor(systemDark ? DARK_BACKGROUND : LIGHT_BACKGROUND));
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -149,6 +151,38 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String saveBackup(String fileName, String content) {
             return activity.saveBackupToDownloads(fileName, content);
+        }
+
+        @JavascriptInterface
+        public void setTheme(String theme) {
+            activity.runOnUiThread(() -> activity.applySystemBars("dark".equals(theme)));
+        }
+    }
+
+    private void applySystemBars(boolean dark) {
+        Window window = getWindow();
+        int color = Color.parseColor(dark ? DARK_BACKGROUND : LIGHT_BACKGROUND);
+        window.setStatusBarColor(color);
+        window.setNavigationBarColor(color);
+        window.setNavigationBarDividerColor(color);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setStatusBarContrastEnforced(false);
+            window.setNavigationBarContrastEnforced(false);
+        }
+
+        int flags = window.getDecorView().getSystemUiVisibility();
+        int lightFlags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        flags = dark ? (flags & ~lightFlags) : (flags | lightFlags);
+        window.getDecorView().setSystemUiVisibility(flags);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                int appearance = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                    | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                controller.setSystemBarsAppearance(dark ? 0 : appearance, appearance);
+            }
         }
     }
 

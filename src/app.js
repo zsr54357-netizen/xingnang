@@ -1005,7 +1005,18 @@
     document.documentElement.dataset.theme = theme;
     const meta = $('#themeColor');
     if (meta) meta.setAttribute('content', theme === 'dark' ? '#100F0D' : '#F6F2EB');
+    notifyAndroidTheme(theme);
     renderThemeSegment();
+  }
+
+  function notifyAndroidTheme(theme) {
+    if (window.AndroidBridge && typeof window.AndroidBridge.setTheme === 'function') {
+      try {
+        window.AndroidBridge.setTheme(theme);
+      } catch (error) {
+        console.warn('无法同步 Android 系统栏主题', error);
+      }
+    }
   }
 
   function renderThemeSegment() {

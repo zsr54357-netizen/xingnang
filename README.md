@@ -4,9 +4,9 @@
 
 ## 版本
 
-- **Android 调试版：1.0.0**（versionCode 1）
+- **Android 调试版：1.0.1**（versionCode 2）
 - **内嵌网页版：1.3.0**
-- Git 标签：`v1.0.0`
+- Git 标签：`v1.0.1`
 
 Android 版目前只做调试构建，不生成正式发布签名，也不面向应用商店分发。
 
@@ -36,7 +36,7 @@ Android 工程位于 `android/`，包名为 `com.xingnang.packing`。
 产物：
 
 ```text
-android/build-out/行囊-debug-1.0.0.apk
+android/build-out/行囊-debug-1.0.1.apk
 ```
 
 这是 debug APK，使用本机固定的调试密钥签名。只要包名和调试密钥不变，覆盖安装会保留应用数据；换一台机器重新生成调试密钥时，需要先卸载旧版（会清除应用内数据，请先导出备份）。
