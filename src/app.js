@@ -7,7 +7,7 @@
 
   const APP_TITLE = '行囊 · 出差清点';
   const STORAGE_KEY = 'xingnang.packing.v1';
-  const VERSION = '1.4.0';
+  const VERSION = '1.5.0';
   const MAX_PACKAGES = 40;
   const MAX_ITEMS_PER_PACKAGE = 250;
   const MAX_TOTAL_ITEMS = 600;
@@ -4827,6 +4827,18 @@
       }, 260);
     });
     on('#hubBackupBtn', 'click', () => openSettings({ scrollToData: true }));
+    on('#hubSecondBtn', 'click', () => {
+      if (window.AndroidBridge && typeof window.AndroidBridge.openSecondQuestion === 'function') {
+        try {
+          window.AndroidBridge.openSecondQuestion();
+        } catch (error) {
+          console.warn('第二问启动失败', error);
+          showToast('第二问启动失败，请重试');
+        }
+        return;
+      }
+      showToast('「第二问」目前只在 Android 行囊内打开');
+    });
     on('#todoBtn', 'click', openTodoPage);
     on('#expenseBtn', 'click', openExpensePage);
     on('#footerBackupBtn', 'click', () => openSettings({ scrollToData: true }));

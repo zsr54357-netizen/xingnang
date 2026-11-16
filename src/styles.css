@@ -466,6 +466,8 @@ html[data-theme="dark"] .hub-page {
 .hub-todo { --hub-accent: var(--accent); --hub-soft: var(--accent-soft); }
 .hub-expense { --hub-accent: var(--expense); --hub-soft: var(--expense-soft); }
 .hub-pack { --hub-accent: var(--blue); --hub-soft: var(--blue-soft); }
+.hub-second { --hub-accent: #8A3B2E; --hub-soft: #F0DDD6; }
+html[data-theme="dark"] .hub-second { --hub-accent: #D08A76; --hub-soft: #3A2620; }
 .hub-icon {
   width: 48px;
   height: 48px;

@@ -35,6 +35,7 @@ public class MainActivity extends Activity {
 
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
+    private boolean darkSystemBars;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -122,6 +123,14 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) {
+            applySystemBars(darkSystemBars);
+        }
+    }
+
+    @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
         if (webView != null && webView.canGoBack()) {
@@ -162,9 +171,17 @@ public class MainActivity extends Activity {
         public void setTheme(String theme) {
             activity.runOnUiThread(() -> activity.applySystemBars("dark".equals(theme)));
         }
+
+        @JavascriptInterface
+        public void openSecondQuestion() {
+            activity.runOnUiThread(() -> activity.startActivity(
+                new Intent(activity, SecondQuestionActivity.class)
+            ));
+        }
     }
 
     private void applySystemBars(boolean dark) {
+        darkSystemBars = dark;
         Window window = getWindow();
         int color = Color.parseColor(dark ? DARK_BACKGROUND : LIGHT_BACKGROUND);
         window.setStatusBarColor(color);

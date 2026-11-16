@@ -29,3 +29,7 @@ Thumbs.db
 # Not part of the 行囊 app repository
 出差提报费用计算/
 下载/
+
+# Original local 第二问 source tree; the integrated runtime copy lives in
+# android/app/src/main/assets/second-question/
+第二问/

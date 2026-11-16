@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">行囊</string>
+    <string name="second_question_name">第二问</string>
     <string name="widget_brand">行囊</string>
     <string name="widget_tagline">出差助手</string>
     <string name="widget_initial_label">出差总天数</string>
