@@ -154,6 +154,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void updateWidgetData(String json) {
+            activity.runOnUiThread(() -> WidgetDataStore.save(activity, json));
+        }
+
+        @JavascriptInterface
         public void setTheme(String theme) {
             activity.runOnUiThread(() -> activity.applySystemBars("dark".equals(theme)));
         }

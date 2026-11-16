@@ -7,7 +7,7 @@
 
   const APP_TITLE = '行囊 · 出差清点';
   const STORAGE_KEY = 'xingnang.packing.v1';
-  const VERSION = '1.3.0';
+  const VERSION = '1.4.0';
   const MAX_PACKAGES = 40;
   const MAX_ITEMS_PER_PACKAGE = 250;
   const MAX_TOTAL_ITEMS = 600;
@@ -956,11 +956,46 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       storageAvailable = true;
+      syncAndroidWidget();
       return true;
     } catch (error) {
       storageAvailable = false;
       console.warn('无法写入本地存储', error);
+      syncAndroidWidget();
       return false;
+    }
+  }
+
+  function buildWidgetSummary() {
+    const activeTrip = getExpenseActiveTrip();
+    const summary = activeTrip ? computeExpenseSummary(activeTrip) : null;
+    const pack = getGlobalStats();
+    const todo = getTodoStats();
+    return {
+      updatedAt: new Date().toISOString(),
+      tripActive: Boolean(activeTrip),
+      tripDays: summary ? summary.totalDays : 0,
+      tripRange: activeTrip ? `${formatExpenseDate(activeTrip.startDate, true)} 至今` : '',
+      totalCny: summary ? Math.round(summary.totalCny * 100) / 100 : 0,
+      allowanceCny: summary ? Math.round(summary.allowanceCny * 100) / 100 : 0,
+      expenseCny: summary ? Math.round(summary.expenseCny * 100) / 100 : 0,
+      packTotal: pack.total,
+      packDone: pack.done,
+      packRemaining: pack.remaining,
+      packPercent: pack.percent,
+      todoTotal: todo.total,
+      todoDone: todo.done,
+      todoRemaining: todo.remaining,
+      todoListCount: todo.listCount
+    };
+  }
+
+  function syncAndroidWidget() {
+    if (!window.AndroidBridge || typeof window.AndroidBridge.updateWidgetData !== 'function') return;
+    try {
+      window.AndroidBridge.updateWidgetData(JSON.stringify(buildWidgetSummary()));
+    } catch (error) {
+      console.warn('无法同步桌面小部件数据', error);
     }
   }
 
@@ -1344,6 +1379,68 @@
     }
   }
 
+  function renderHubPage() {
+    const pack = getGlobalStats();
+    const todo = getTodoStats();
+    const activeTrip = getExpenseActiveTrip();
+    const lastTrip = activeTrip ? null : getLatestFinishedExpenseTrip();
+    const summaryTrip = activeTrip || lastTrip;
+    const summary = summaryTrip ? computeExpenseSummary(summaryTrip) : null;
+
+    const todoBtn = $('#hubTodoBtn');
+    const todoStat = $('#hubTodoStat');
+    const todoMeta = $('#hubTodoMeta');
+    if (todoStat && todoMeta) {
+      if (!todo.total) {
+        todoStat.textContent = '还没有待办';
+        todoMeta.textContent = '新建第一份清单';
+      } else if (todo.remaining > 0) {
+        todoStat.textContent = `${todo.remaining} 项未完成`;
+        todoMeta.textContent = `${todo.listCount} 份清单 · 已完成 ${todo.done} 项`;
+      } else {
+        todoStat.textContent = '全部完成';
+        todoMeta.textContent = `${todo.listCount} 份清单 · 共 ${todo.total} 项`;
+      }
+      if (todoBtn) todoBtn.setAttribute('aria-label', `待办，${todoStat.textContent}，${todoMeta.textContent}`);
+    }
+
+    const expenseBtn = $('#hubExpenseBtn');
+    const expenseStat = $('#hubExpenseStat');
+    const expenseMeta = $('#hubExpenseMeta');
+    if (expenseStat && expenseMeta) {
+      if (!summary) {
+        expenseStat.textContent = '开始记录';
+        expenseMeta.textContent = '按天补贴与额外支出';
+      } else if (activeTrip) {
+        expenseStat.textContent = formatMoneyCNY(summary.totalCny);
+        expenseMeta.textContent = `出差 ${summary.totalDays} 天 · 进行中`;
+      } else {
+        expenseStat.textContent = formatMoneyCNY(summary.totalCny);
+        expenseMeta.textContent = `上次出差 · ${summary.totalDays} 天`;
+      }
+      if (expenseBtn) expenseBtn.setAttribute('aria-label', `出差费用，${expenseStat.textContent}，${expenseMeta.textContent}`);
+    }
+
+    const packBtn = $('#hubPackBtn');
+    const packStat = $('#hubPackStat');
+    const packMeta = $('#hubPackMeta');
+    const packBar = $('#hubPackBar');
+    if (packStat && packMeta) {
+      if (!pack.total) {
+        packStat.textContent = '还没有物品';
+        packMeta.textContent = '先建一个包裹';
+      } else if (pack.remaining > 0) {
+        packStat.textContent = `还差 ${pack.remaining} 件`;
+        packMeta.textContent = `已带 ${pack.done} / ${pack.total} 件 · ${pack.packageCount} 个包裹`;
+      } else {
+        packStat.textContent = '全部带齐';
+        packMeta.textContent = `共 ${pack.total} 件 · ${pack.packageCount} 个包裹`;
+      }
+      if (packBar) packBar.style.width = `${pack.percent}%`;
+      if (packBtn) packBtn.setAttribute('aria-label', `打包清单，${packStat.textContent}，${packMeta.textContent}`);
+    }
+  }
+
   /* ---------------- Navigation / overlays ---------------- */
 
   function getTopLayer() {
@@ -1470,6 +1567,14 @@
     if (scroll) scroll.scrollTop = 0;
   }
 
+  function openHubPage() {
+    const top = getTopLayer();
+    if (top && top.type === 'hub') return;
+    pushLayer({ type: 'hub' });
+    const scroll = $('#hubPage .page-scroll');
+    if (scroll) scroll.scrollTop = 0;
+  }
+
   function openTodoPage() {
     pushLayer({ type: 'todo' });
     const scroll = $('#todoScroll');
@@ -1498,6 +1603,7 @@
     if (pageLayer.type === 'detail') return $('#detailPage');
     if (pageLayer.type === 'settings') return $('#settingsPage');
     if (pageLayer.type === 'search') return $('#searchPage');
+    if (pageLayer.type === 'hub') return $('#hubPage');
     if (pageLayer.type === 'todo') return $('#todoPage');
     if (pageLayer.type === 'todoList') return $('#todoListPage');
     if (pageLayer.type === 'expense') return $('#expensePage');
@@ -1509,6 +1615,7 @@
     if (pageLayer && pageLayer.type === 'detail') return $('#detailBackBtn');
     if (pageLayer && pageLayer.type === 'settings') return $('#settingsBackBtn');
     if (pageLayer && pageLayer.type === 'search') return $('#searchBackBtn');
+    if (pageLayer && pageLayer.type === 'hub') return $('#hubSettingsBtn');
     if (pageLayer && pageLayer.type === 'todo') return $('#todoBackBtn');
     if (pageLayer && pageLayer.type === 'todoList') return $('#todoListBackBtn');
     if (pageLayer && pageLayer.type === 'expense') return $('#expenseBackBtn');
@@ -1559,6 +1666,9 @@
         } else if (pageLayer.type === 'todo') {
           const target = $('#todoBackBtn');
           if (target) target.focus({ preventScroll: true });
+        } else if (pageLayer.type === 'hub') {
+          const target = $('#hubSettingsBtn');
+          if (target) target.focus({ preventScroll: true });
         } else if (pageLayer.type === 'todoList') {
           const target = $('#todoListBackBtn');
           if (target) target.focus({ preventScroll: true });
@@ -1593,6 +1703,7 @@
       detail: $('#detailPage'),
       settings: $('#settingsPage'),
       search: $('#searchPage'),
+      hub: $('#hubPage'),
       todo: $('#todoPage'),
       todoList: $('#todoListPage'),
       expense: $('#expensePage')
@@ -1610,6 +1721,7 @@
     if (visibleType === 'detail' && pageLayer) renderDetail(pageLayer);
     else if (visibleType === 'settings') renderSettings();
     else if (visibleType === 'search') renderSearch();
+    else if (visibleType === 'hub') renderHubPage();
     else if (visibleType === 'todo') renderTodoPage();
     else if (visibleType === 'todoList') renderTodoListPage(pageLayer);
     else if (visibleType === 'expense') renderExpensePage();
@@ -1644,6 +1756,8 @@
       document.title = `搜索 · 行囊`;
     } else if (pageLayer && pageLayer.type === 'todo') {
       document.title = `待办清单 · 行囊`;
+    } else if (pageLayer && pageLayer.type === 'hub') {
+      document.title = APP_TITLE;
     } else if (pageLayer && pageLayer.type === 'todoList') {
       const list = getTodoListById(pageLayer.listId);
       document.title = `${list ? list.name : '待办清单'} · 行囊`;
@@ -4687,7 +4801,7 @@
     haptic(10);
     if (blank) showToast('清单已清空，先建一个包裹吧');
     window.setTimeout(() => {
-      const target = $('#addFab');
+      const target = $('#hubTodoBtn') || $('#hubSettingsBtn') || $('#addFab');
       if (target) target.focus({ preventScroll: true });
     }, 80);
   }
@@ -4702,6 +4816,17 @@
 
     on('#searchBtn', 'click', openSearch);
     on('#settingsBtn', 'click', openSettings);
+    on('#brandHomeBtn', 'click', openHubPage);
+    on('#hubSettingsBtn', 'click', openSettings);
+    on('#hubTodoBtn', 'click', openTodoPage);
+    on('#hubExpenseBtn', 'click', openExpensePage);
+    on('#hubPackBtn', 'click', () => {
+      closeTopLayer();
+      window.setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: prefersReducedMotion.matches ? 'auto' : 'smooth' });
+      }, 260);
+    });
+    on('#hubBackupBtn', 'click', () => openSettings({ scrollToData: true }));
     on('#todoBtn', 'click', openTodoPage);
     on('#expenseBtn', 'click', openExpensePage);
     on('#footerBackupBtn', 'click', () => openSettings({ scrollToData: true }));
@@ -4926,7 +5051,9 @@
     bindStaticEvents();
     renderHome();
     renderSettings();
+    syncAndroidWidget();
     showWelcomeIfNeeded();
+    openHubPage();
     syncUI({ reason: 'init' });
     document.documentElement.classList.add('app-ready');
     registerServiceWorker();

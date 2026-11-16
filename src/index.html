@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 
   <title>行囊 · 出差清点</title>
-  <meta name="description" content="按包裹清点出差物品，固定每次必带的东西，新建多份待办清单，计算出差提报费用，离线可用。">
+  <meta name="description" content="待办、出差费用和打包清单三个模块，多份待办清单、费用计算和 Android 桌面小部件，离线可用。">
   <meta name="format-detection" content="telephone=no">
   <meta name="theme-color" content="#F7F3ED" id="themeColor">
   <meta name="color-scheme" content="light dark">
@@ -83,7 +83,7 @@
 
   <div class="app-shell" id="app">
     <header class="topbar">
-      <div class="brand" aria-label="行囊 出差清点">
+      <button class="brand" id="brandHomeBtn" type="button" aria-label="打开模块首页">
         <span class="brand-mark" aria-hidden="true">
           <svg class="brand-suitcase"><use href="#i-luggage"/></svg>
           <span class="brand-check"><svg><use href="#i-check"/></svg></span>
@@ -92,7 +92,7 @@
           <strong>行囊</strong>
           <small>出差清点</small>
         </span>
-      </div>
+      </button>
       <div class="top-actions">
         <button class="icon-btn" id="searchBtn" type="button" aria-label="搜索物品">
           <svg><use href="#i-search"/></svg>
@@ -181,6 +181,72 @@
       <span id="addFabLabel">添加物品</span>
     </button>
   </div>
+
+  <section class="page hub-page" id="hubPage" aria-label="模块首页" aria-hidden="true">
+    <header class="hub-topbar">
+      <div class="brand hub-brand" aria-label="行囊 出差清点">
+        <span class="brand-mark" aria-hidden="true">
+          <svg class="brand-suitcase"><use href="#i-luggage"/></svg>
+          <span class="brand-check"><svg><use href="#i-check"/></svg></span>
+        </span>
+        <span class="brand-copy">
+          <strong>行囊</strong>
+          <small>出差清点</small>
+        </span>
+      </div>
+      <button class="icon-btn" id="hubSettingsBtn" type="button" aria-label="设置">
+        <svg><use href="#i-sliders"/></svg>
+      </button>
+    </header>
+    <div class="page-scroll hub-scroll">
+      <div class="hub-intro">
+        <p class="hub-eyebrow">行囊 · 出差工具</p>
+        <h1>今天从哪开始？</h1>
+        <p>待办、费用、打包，三个模块独立管理，随时可以切换。</p>
+      </div>
+
+      <div class="hub-list">
+        <button class="hub-card hub-todo" id="hubTodoBtn" type="button">
+          <span class="hub-icon" aria-hidden="true"><svg><use href="#i-list-checks"/></svg></span>
+          <span class="hub-copy">
+            <span class="hub-kicker">清单与计划</span>
+            <span class="hub-title">待办</span>
+            <span class="hub-stat" id="hubTodoStat">还没有待办</span>
+            <span class="hub-meta" id="hubTodoMeta">0 份清单</span>
+          </span>
+          <span class="hub-arrow" aria-hidden="true"><svg><use href="#i-chevron-right"/></svg></span>
+        </button>
+
+        <button class="hub-card hub-expense" id="hubExpenseBtn" type="button">
+          <span class="hub-icon" aria-hidden="true"><svg><use href="#i-calculator"/></svg></span>
+          <span class="hub-copy">
+            <span class="hub-kicker">补贴 · 汇率 · 报销</span>
+            <span class="hub-title">出差费用</span>
+            <span class="hub-stat" id="hubExpenseStat">开始记录</span>
+            <span class="hub-meta" id="hubExpenseMeta">按天补贴与额外支出</span>
+          </span>
+          <span class="hub-arrow" aria-hidden="true"><svg><use href="#i-chevron-right"/></svg></span>
+        </button>
+
+        <button class="hub-card hub-pack" id="hubPackBtn" type="button">
+          <span class="hub-icon" aria-hidden="true"><svg><use href="#i-box"/></svg></span>
+          <span class="hub-copy">
+            <span class="hub-kicker">行囊物品清点</span>
+            <span class="hub-title">打包清单</span>
+            <span class="hub-stat" id="hubPackStat">还没有物品</span>
+            <span class="hub-meta" id="hubPackMeta">先建一个包裹</span>
+            <span class="hub-progress" aria-hidden="true"><i id="hubPackBar"></i></span>
+          </span>
+          <span class="hub-arrow" aria-hidden="true"><svg><use href="#i-chevron-right"/></svg></span>
+        </button>
+      </div>
+
+      <footer class="hub-foot">
+        <span><svg><use href="#i-shield"/></svg> 数据只保存在本机 · 不联网</span>
+        <button type="button" id="hubBackupBtn">备份</button>
+      </footer>
+    </div>
+  </section>
 
   <section class="page detail-page" id="detailPage" aria-label="包裹详情" aria-hidden="true">
     <header class="page-topbar">
@@ -294,7 +360,7 @@
         <p><strong>不联网，也能安心清点。</strong><br>清单只保存在这台手机，不会上传到任何服务器。</p>
       </div>
 
-      <p class="about-line">行囊 · 出差清点 <span>v1.3.0</span></p>
+      <p class="about-line">行囊 · 出差清点 <span>v1.4.0</span></p>
     </div>
   </section>
 

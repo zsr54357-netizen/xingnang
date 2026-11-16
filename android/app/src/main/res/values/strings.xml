@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">行囊</string>
+    <string name="widget_brand">行囊</string>
+    <string name="widget_tagline">出差助手</string>
+    <string name="widget_initial_label">出差总天数</string>
+    <string name="widget_initial_value">0 天</string>
+    <string name="widget_initial_sub">打开行囊开始记录</string>
+    <string name="widget_hint">轻点翻页</string>
+    <string name="widget_4_soft_label">行囊 4×4 · 柔光玻璃</string>
+    <string name="widget_4_frost_label">行囊 4×4 · 轻透磨砂</string>
+    <string name="widget_5_soft_label">行囊 5×5 · 柔光玻璃</string>
+    <string name="widget_5_frost_label">行囊 5×5 · 轻透磨砂</string>
+    <string name="widget_description">出差总天数、应报销总额、打包进度和待办，轻点小部件循环翻页</string>
+</resources>

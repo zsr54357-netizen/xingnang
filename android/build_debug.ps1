@@ -58,7 +58,7 @@ Copy-Item $webSingle (Join-Path $assets 'index.html') -Force
 if (Test-Path $outputDir) {
     Remove-Item $outputDir -Recurse -Force
 }
-New-Item -ItemType Directory -Force -Path $work, (Join-Path $work 'classes'), (Join-Path $work 'dex') | Out-Null
+New-Item -ItemType Directory -Force -Path $work, (Join-Path $work 'classes'), (Join-Path $work 'dex'), (Join-Path $work 'gen') | Out-Null
 
 Write-Host '编译 Android 资源...'
 $compiledRes = Join-Path $work 'compiled-res.zip'
@@ -66,21 +66,24 @@ $compiledRes = Join-Path $work 'compiled-res.zip'
 if ($LASTEXITCODE -ne 0) { throw 'aapt2 compile 失败' }
 
 $unsigned = Join-Path $work 'unsigned.apk'
+$generatedJava = Join-Path $work 'gen'
 & (Join-Path $buildTools 'aapt2.exe') link `
     -o $unsigned `
     -I $androidJar `
     --manifest $manifest `
     --min-sdk-version 29 `
     --target-sdk-version 34 `
-    --version-code 2 `
-    --version-name '1.0.1' `
+    --version-code 3 `
+    --version-name '1.1.0' `
+    --java $generatedJava `
     -A $assets `
     -R $compiledRes `
     --auto-add-overlay
 if ($LASTEXITCODE -ne 0) { throw 'aapt2 link 失败' }
 
 Write-Host '编译 Java...'
-$javaFiles = Get-ChildItem (Join-Path $appMain 'java') -Recurse -Filter *.java | ForEach-Object { $_.FullName }
+$javaFiles = @(Get-ChildItem (Join-Path $appMain 'java') -Recurse -Filter *.java | ForEach-Object { $_.FullName })
+$javaFiles += @(Get-ChildItem $generatedJava -Recurse -Filter *.java | ForEach-Object { $_.FullName })
 & (Join-Path $JdkHome 'bin\javac.exe') `
     -encoding UTF-8 `
     -source 8 `
@@ -128,7 +131,7 @@ if (-not (Test-Path $debugStore)) {
     if ($LASTEXITCODE -ne 0) { throw '生成 debug keystore 失败' }
 }
 
-$apk = Join-Path $outputDir '行囊-debug-1.0.1.apk'
+$apk = Join-Path $outputDir '行囊-debug-1.1.0.apk'
 & (Join-Path $buildTools 'apksigner.bat') sign `
     --ks $debugStore `
     --ks-key-alias androiddebugkey `
