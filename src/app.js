@@ -7,7 +7,7 @@
 
   const APP_TITLE = '行囊 · 出差清点';
   const STORAGE_KEY = 'xingnang.packing.v1';
-  const VERSION = '1.5.0';
+  const VERSION = '1.6.0';
   const MAX_PACKAGES = 40;
   const MAX_ITEMS_PER_PACKAGE = 250;
   const MAX_TOTAL_ITEMS = 600;
@@ -32,9 +32,17 @@
 
   const PACKAGE_ICONS = [
     { key: 'luggage', label: '行李箱' },
-    { key: 'backpack', label: '背包' },
-    { key: 'briefcase', label: '手提包' },
+    { key: 'suitcase-large', label: '28寸拉杆箱' },
+    { key: 'suitcase-small', label: '18寸行李箱' },
+    { key: 'chest-bag', label: '胸包' },
+    { key: 'backpack', label: '双肩背包' },
+    { key: 'sling', label: '斜挎包' },
+    { key: 'handbag', label: '手提包' },
     { key: 'tote', label: '托特包' },
+    { key: 'duffel', label: '行李袋' },
+    { key: 'briefcase', label: '电脑包' },
+    { key: 'toiletry', label: '洗漱包' },
+    { key: 'digital-pouch', label: '数码包' },
     { key: 'camera-bag', label: '相机包' }
   ];
   const PACKAGE_ICON_KEYS = new Set(PACKAGE_ICONS.map((item) => item.key));
@@ -366,6 +374,32 @@
     return state.packages.find((pkg) => pkg.id === id) || null;
   }
 
+  function getPackageParent(pkg) {
+    return pkg && pkg.parentId ? getPackageById(pkg.parentId) : null;
+  }
+
+  function getTopLevelPackages() {
+    return state.packages.filter((pkg) => !pkg.parentId || !getPackageById(pkg.parentId));
+  }
+
+  function getChildPackages(parentId) {
+    return state.packages.filter((pkg) => pkg.parentId === parentId);
+  }
+
+  function getPackagesInDisplayOrder() {
+    const ordered = [];
+    for (const parent of getTopLevelPackages()) {
+      ordered.push(parent);
+      ordered.push(...getChildPackages(parent.id));
+    }
+    return ordered;
+  }
+
+  function getPackageDisplayName(pkg) {
+    const parent = getPackageParent(pkg);
+    return parent ? `${parent.name} / ${pkg.name}` : pkg.name;
+  }
+
   function getItem(packageId, itemId) {
     const pkg = getPackageById(packageId);
     if (!pkg) return { pkg: null, item: null };
@@ -388,6 +422,23 @@
     return { total, done, remaining: total - done, fixed, fixedDone, fixedRemaining: fixed - fixedDone };
   }
 
+  function getPackageSubtreeStats(pkg) {
+    const stats = getPackageStats(pkg);
+    let childCount = 0;
+    for (const child of getChildPackages(pkg.id)) {
+      const childStats = getPackageSubtreeStats(child);
+      stats.total += childStats.total;
+      stats.done += childStats.done;
+      stats.fixed += childStats.fixed;
+      stats.fixedDone += childStats.fixedDone;
+      childCount += 1 + childStats.childCount;
+    }
+    stats.remaining = stats.total - stats.done;
+    stats.fixedRemaining = stats.fixed - stats.fixedDone;
+    stats.childCount = childCount;
+    return stats;
+  }
+
   function getGlobalStats() {
     let total = 0;
     let done = 0;
@@ -400,6 +451,7 @@
       fixed += stats.fixed;
       fixedDone += stats.fixedDone;
     }
+    const topLevel = getTopLevelPackages();
     return {
       total,
       done,
@@ -408,7 +460,8 @@
       fixedDone,
       fixedRemaining: fixed - fixedDone,
       percent: total ? Math.round((done / total) * 100) : 0,
-      packageCount: state.packages.length
+      packageCount: topLevel.length,
+      childPackageCount: state.packages.length - topLevel.length
     };
   }
 
@@ -594,7 +647,7 @@
   }
 
   function getPendingCount(pkg) {
-    return pkg.items.filter((item) => !item.checked).length;
+    return getPackageSubtreeStats(pkg).remaining;
   }
 
   function snapshotChecks() {
@@ -671,6 +724,7 @@
     const luggage = {
       id: makeId('pkg'),
       name: '行李箱',
+      parentId: null,
       icon: 'luggage',
       color: 'orange',
       createdAt: now + 1,
@@ -686,6 +740,7 @@
     const backpack = {
       id: makeId('pkg'),
       name: '随身背包',
+      parentId: null,
       icon: 'backpack',
       color: 'blue',
       createdAt: now + 2,
@@ -701,6 +756,7 @@
     const laptopBag = {
       id: makeId('pkg'),
       name: '电脑包',
+      parentId: null,
       icon: 'briefcase',
       color: 'green',
       createdAt: now + 3,
@@ -764,16 +820,24 @@
     };
 
     const packages = [];
+    const rawPackageIds = new Map();
+    const parentCandidates = new Map();
     source.packages.slice(0, MAX_PACKAGES).forEach((rawPkg, packageIndex) => {
       if (!rawPkg || typeof rawPkg !== 'object' || Array.isArray(rawPkg)) return;
+      const rawPackageId = typeof rawPkg.id === 'string' ? rawPkg.id : '';
       const pkg = {
         id: uniqueId('pkg', rawPkg.id, usedPackageIds),
         name: normalizeName(rawPkg.name, 24) || `未命名包裹 ${packageIndex + 1}`,
+        parentId: null,
         icon: PACKAGE_ICON_KEYS.has(rawPkg.icon) ? rawPkg.icon : PACKAGE_ICONS[packageIndex % PACKAGE_ICONS.length].key,
         color: PACKAGE_COLOR_KEYS.has(rawPkg.color) ? rawPkg.color : PACKAGE_COLORS[packageIndex % PACKAGE_COLORS.length].key,
         items: [],
         createdAt: Number.isFinite(Number(rawPkg.createdAt)) ? Number(rawPkg.createdAt) : Date.now() + packageIndex
       };
+      if (rawPackageId) rawPackageIds.set(rawPackageId, pkg.id);
+      if (typeof rawPkg.parentId === 'string' && rawPkg.parentId) {
+        parentCandidates.set(pkg.id, rawPkg.parentId);
+      }
       if (Array.isArray(rawPkg.items)) {
         rawPkg.items.slice(0, MAX_ITEMS_PER_PACKAGE).forEach((rawItem) => {
           if (totalItems >= MAX_TOTAL_ITEMS) return;
@@ -796,6 +860,19 @@
       }
       packages.push(pkg);
     });
+
+    // Only one level of nesting is supported: a package may have a top-level
+    // parent, but a child package cannot itself be a parent.
+    for (const pkg of packages) {
+      const rawParentId = parentCandidates.get(pkg.id);
+      const parentId = rawParentId ? rawPackageIds.get(rawParentId) : null;
+      if (parentId && parentId !== pkg.id) pkg.parentId = parentId;
+    }
+    for (const pkg of packages) {
+      if (!pkg.parentId) continue;
+      const parent = packages.find((entry) => entry.id === pkg.parentId);
+      if (!parent || parent.parentId) pkg.parentId = null;
+    }
 
     const rawSettings = source.settings && typeof source.settings === 'object' && !Array.isArray(source.settings)
       ? source.settings
@@ -1199,7 +1276,8 @@
     const continueBtn = $('#continueBtn');
     const addFabLabel = $('#addFabLabel');
     const addFab = $('#addFab');
-    const activePackageCount = state.packages.filter((pkg) => pkg.items.length > 0).length;
+    const activePackageCount = getTopLevelPackages()
+      .filter((pkg) => getPackageSubtreeStats(pkg).total > 0).length;
 
     if (!hero || !fixedScroll || !packageGrid) return;
     updateTodoBadge();
@@ -1288,8 +1366,9 @@
     }
 
     // Packages
-    packageGrid.classList.toggle('is-empty', state.packages.length === 0);
-    if (state.packages.length === 0) {
+    const topLevelPackages = getTopLevelPackages();
+    packageGrid.classList.toggle('is-empty', topLevelPackages.length === 0);
+    if (topLevelPackages.length === 0) {
       packageGrid.innerHTML = `
         <button class="pkg-add" type="button" data-action="add-package">
           <span class="pkg-add-icon">${icon('plus')}</span>
@@ -1297,15 +1376,17 @@
           <small>行李箱、背包、电脑包，都能分开清点</small>
         </button>`;
     } else {
-      const cards = state.packages.map((pkg) => {
-        const pkgStats = getPackageStats(pkg);
+      const cards = topLevelPackages.map((pkg) => {
+        const pkgStats = getPackageSubtreeStats(pkg);
+        const children = getChildPackages(pkg.id);
         const percent = pkgStats.total ? Math.round((pkgStats.done / pkgStats.total) * 100) : 0;
         const complete = pkgStats.total > 0 && pkgStats.remaining === 0;
         let meta;
         if (pkgStats.total === 0) meta = '还没有物品';
         else if (complete) meta = '已全部带齐';
         else meta = `待带 ${pkgStats.remaining} 件`;
-        const ariaLabel = `${pkg.name}，${complete ? '已全部带齐' : `共 ${pkgStats.total} 件，已带 ${pkgStats.done} 件`}，点击打开包裹`;
+        if (children.length) meta += ` · ${children.length} 个子包`;
+        const ariaLabel = `${pkg.name}，${complete ? '已全部带齐' : `共 ${pkgStats.total} 件，已带 ${pkgStats.done} 件`}${children.length ? `，含 ${children.length} 个子包` : ''}，点击打开包裹`;
         return `
           <button class="pkg-card tone-${pkgTone(pkg)} ${complete ? 'is-complete' : ''}"
             type="button"
@@ -1340,14 +1421,14 @@
   }
 
   function handleContinue() {
-    if (!state.packages.length) {
+    const topLevelPackages = getTopLevelPackages();
+    if (!topLevelPackages.length) {
       openPackageSheet();
       return;
     }
     const stats = getGlobalStats();
     if (stats.total === 0) {
-      if (state.packages.length) openItemSheet(state.packages[0].id);
-      else openPackageSheet();
+      openItemSheet(topLevelPackages[0].id);
       return;
     }
     const uncheckedFixed = getFixedEntries().find((entry) => !entry.item.checked);
@@ -1364,7 +1445,7 @@
       }
       return;
     }
-    const firstPending = state.packages.find((pkg) => getPendingCount(pkg) > 0);
+    const firstPending = getTopLevelPackages().find((pkg) => getPendingCount(pkg) > 0);
     if (firstPending) {
       const card = $(`[data-action="open-package"][data-package-id="${escapeHTML(firstPending.id)}"]`);
       if (card) {
@@ -1431,10 +1512,10 @@
         packMeta.textContent = '先建一个包裹';
       } else if (pack.remaining > 0) {
         packStat.textContent = `还差 ${pack.remaining} 件`;
-        packMeta.textContent = `已带 ${pack.done} / ${pack.total} 件 · ${pack.packageCount} 个包裹`;
+        packMeta.textContent = `已带 ${pack.done} / ${pack.total} 件 · ${pack.packageCount} 个包裹${pack.childPackageCount ? ` / ${pack.childPackageCount} 个子包` : ''}`;
       } else {
         packStat.textContent = '全部带齐';
-        packMeta.textContent = `共 ${pack.total} 件 · ${pack.packageCount} 个包裹`;
+        packMeta.textContent = `共 ${pack.total} 件 · ${pack.packageCount} 个包裹${pack.childPackageCount ? ` / ${pack.childPackageCount} 个子包` : ''}`;
       }
       if (packBar) packBar.style.width = `${pack.percent}%`;
       if (packBtn) packBtn.setAttribute('aria-label', `打包清单，${packStat.textContent}，${packMeta.textContent}`);
@@ -1834,6 +1915,26 @@
       </section>`;
   }
 
+  function subpackageCardMarkup(pkg) {
+    const stats = getPackageStats(pkg);
+    const percent = stats.total ? Math.round((stats.done / stats.total) * 100) : 0;
+    const complete = stats.total > 0 && stats.remaining === 0;
+    return `
+      <button class="subpkg-card tone-${pkgTone(pkg)} ${complete ? 'is-complete' : ''}"
+        type="button"
+        data-action="open-package"
+        data-package-id="${escapeHTML(pkg.id)}"
+        aria-label="${escapeHTML(pkg.name)}，${stats.total ? `共 ${stats.total} 件，已带 ${stats.done} 件` : '还没有物品'}，点击打开子包裹">
+        <span class="subpkg-icon" aria-hidden="true">${icon(pkgIconKey(pkg))}</span>
+        <span class="subpkg-copy">
+          <strong>${escapeHTML(pkg.name)}</strong>
+          <small>${stats.total ? `${stats.done} / ${stats.total} 件` : '空子包'}</small>
+        </span>
+        <span class="subpkg-chevron" aria-hidden="true">${icon('chevron-right')}</span>
+        <span class="subpkg-progress" aria-hidden="true"><i style="width:${percent}%"></i></span>
+      </button>`;
+  }
+
   function renderDetail(pageLayer) {
     const pkg = getPackageById(pageLayer.id);
     const content = $('#detailContent');
@@ -1852,10 +1953,14 @@
     }
 
     if (topTitle) topTitle.textContent = pkg.name;
-    const stats = getPackageStats(pkg);
+    const directStats = getPackageStats(pkg);
+    const children = getChildPackages(pkg.id);
+    const parent = getPackageParent(pkg);
+    const isTopLevel = !parent;
+    const displayStats = children.length ? getPackageSubtreeStats(pkg) : directStats;
     const globalStats = getGlobalStats();
-    const percent = stats.total ? Math.round((stats.done / stats.total) * 100) : 0;
-    const complete = stats.total > 0 && stats.done === stats.total;
+    const percent = displayStats.total ? Math.round((displayStats.done / displayStats.total) * 100) : 0;
+    const complete = displayStats.total > 0 && displayStats.done === displayStats.total;
     const circumference = 2 * Math.PI * 23;
     const ringOffset = circumference * (1 - percent / 100);
     const todoCount = pkg.items.filter((item) => !item.checked).length;
@@ -1869,18 +1974,18 @@
     });
     const visibleFixed = filtered.filter((item) => item.fixed);
     const visibleOther = filtered.filter((item) => !item.fixed);
-    const kicker = stats.total === 0
+    const kicker = displayStats.total === 0
       ? '还没放入物品'
       : complete
         ? '已全部带齐'
-        : stats.done > 0 ? '正在清点' : '准备出发';
-    const kickerIcon = complete ? 'check' : stats.total === 0 ? 'box' : 'list-checks';
+        : displayStats.done > 0 ? '正在清点' : '准备出发';
+    const kickerIcon = complete ? 'check' : displayStats.total === 0 ? 'box' : 'list-checks';
 
     let filtersMarkup = '';
-    if (stats.total > 0) {
+    if (directStats.total > 0) {
       filtersMarkup = `
-        <div class="detail-filters" role="group" aria-label="筛选物品">
-          <button class="filter-chip ${detailFilter === 'all' ? 'is-active' : ''}" type="button" data-action="set-filter" data-filter="all" aria-pressed="${detailFilter === 'all'}">全部 <span class="filter-count">${stats.total}</span></button>
+        <div class="detail-filters" role="group" aria-label="筛选本包物品">
+          <button class="filter-chip ${detailFilter === 'all' ? 'is-active' : ''}" type="button" data-action="set-filter" data-filter="all" aria-pressed="${detailFilter === 'all'}">全部 <span class="filter-count">${directStats.total}</span></button>
           <button class="filter-chip ${detailFilter === 'todo' ? 'is-active' : ''}" type="button" data-action="set-filter" data-filter="todo" aria-pressed="${detailFilter === 'todo'}">待带 <span class="filter-count">${todoCount}</span></button>
           <button class="filter-chip ${detailFilter === 'done' ? 'is-active' : ''}" type="button" data-action="set-filter" data-filter="done" aria-pressed="${detailFilter === 'done'}">已带 <span class="filter-count">${doneCount}</span></button>
         </div>`;
@@ -1890,14 +1995,43 @@
       <div class="complete-banner">
         <span class="complete-icon">${icon('check')}</span>
         <div class="complete-copy">
-          <strong>这个包裹收好了</strong>
+          <strong>${children.length ? '这个包裹和子包都收好了' : '这个包裹收好了'}</strong>
           <p>${globalStats.remaining === 0 ? '所有包裹都确认完毕，可以出发了。' : `还有 ${globalStats.remaining} 件在别的包裹里。`}</p>
         </div>
       </div>` : '';
 
+    const parentContext = parent ? `
+      <div class="parent-context">
+        ${icon('box')}
+        <span>属于「${escapeHTML(parent.name)}」</span>
+      </div>` : '';
+
+    const subpackagesMarkup = children.length ? `
+      <section class="subpkg-section" aria-labelledby="subpkgHeading">
+        <div class="subpkg-head">
+          <div class="subpkg-title">
+            <span class="section-kicker">${icon('box')} 分类收纳</span>
+            <h2 id="subpkgHeading">子包裹 <span class="section-count">${children.length}</span></h2>
+          </div>
+        </div>
+        <div class="subpkg-grid">${children.map(subpackageCardMarkup).join('')}</div>
+      </section>` : '';
+
+    const detailTools = (isTopLevel || directStats.total > 0) ? `
+      <div class="detail-tools">
+        ${isTopLevel ? `<button class="detail-tool" type="button" data-action="add-child-package" data-package-id="${escapeHTML(pkg.id)}">${icon('plus')}<span>新建子包裹</span></button>` : ''}
+        ${directStats.total > 0 ? `<button class="detail-tool" type="button" data-action="transfer-items" data-package-id="${escapeHTML(pkg.id)}">${icon('arrow-right')}<span>转移物品</span></button>` : ''}
+      </div>` : '';
+
     let bodyMarkup;
-    if (stats.total === 0) {
-      bodyMarkup = `
+    if (directStats.total === 0) {
+      bodyMarkup = children.length ? `
+        <div class="detail-empty detail-empty-compact">
+          <span class="empty-orb">${icon(pkgIconKey(pkg))}</span>
+          <h3>本包还没有直接物品</h3>
+          <p>物品可以放进下面的子包裹，也可以直接加在这个包裹里。</p>
+          <button type="button" data-action="add-item" data-package-id="${escapeHTML(pkg.id)}">添加物品</button>
+        </div>` : `
         <div class="detail-empty">
           <span class="empty-orb">${icon(pkgIconKey(pkg))}</span>
           <h3>这个包裹还没有物品</h3>
@@ -1923,13 +2057,14 @@
     }
 
     content.innerHTML = `
+      ${parentContext}
       <section class="bag-hero tone-${pkgTone(pkg)}" aria-labelledby="bagTitle">
         <div class="bag-hero-main">
           <span class="bag-icon" aria-hidden="true">${icon(pkgIconKey(pkg))}</span>
           <div class="bag-info">
             <p class="bag-kicker">${icon(kickerIcon)} ${escapeHTML(kicker)}</p>
             <h1 class="bag-title" id="bagTitle">${escapeHTML(pkg.name)}</h1>
-            <p class="bag-meta">${stats.total ? `<span>已带 ${stats.done} 件</span><i class="meta-dot"></i><span>共 ${stats.total} 件</span>${stats.fixed ? `<i class="meta-dot"></i><span>固定 ${stats.fixed}</span>` : ''}` : '<span>这个包裹还是空的</span>'}</p>
+            <p class="bag-meta">${displayStats.total ? `<span>已带 ${displayStats.done} / ${displayStats.total} 件</span>${children.length ? `<i class="meta-dot"></i><span>${children.length} 子包</span>` : ''}${displayStats.fixed ? `<i class="meta-dot"></i><span>固定 ${displayStats.fixed}</span>` : ''}` : '<span>这个包裹还是空的</span>'}</p>
           </div>
           <div class="bag-ring" aria-hidden="true">
             <svg viewBox="0 0 60 60">
@@ -1941,10 +2076,12 @@
         </div>
         <div class="bag-progress">
           <div class="bag-progress-track" aria-hidden="true"><div class="bag-progress-fill" style="width:${percent}%"></div></div>
-          <div class="bag-progress-caption"><span>已清点 ${percent}%</span><span>${stats.total === 0 ? '还没有物品' : stats.remaining ? `<b>还差 ${stats.remaining} 件</b>` : '全部就位'}</span></div>
+          <div class="bag-progress-caption"><span>已清点 ${percent}%</span><span>${displayStats.total === 0 ? '还没有物品' : displayStats.remaining ? `<b>还差 ${displayStats.remaining} 件</b>` : '全部就位'}</span></div>
         </div>
       </section>
       ${completeBanner}
+      ${detailTools}
+      ${subpackagesMarkup}
       ${filtersMarkup}
       ${bodyMarkup}`;
 
@@ -1962,7 +2099,6 @@
       }, prefersReducedMotion.matches ? 20 : 420);
     }
   }
-
   /* ---------------- To-do page ---------------- */
 
   function renderTodoRow(todo) {
@@ -2793,9 +2929,9 @@
       const fixedEntries = getFixedEntries();
       const quickEntries = fixedEntries.length ? fixedEntries.slice(0, 10) : allItems().slice(0, 10);
       const quickTitle = fixedEntries.length ? '固定物品' : '清单里的物品';
-      const packageChips = state.packages.map((pkg) => `
+      const packageChips = getPackagesInDisplayOrder().map((pkg) => `
         <button class="quick-chip tone-${pkgTone(pkg)}" type="button" data-action="search-open-package" data-package-id="${escapeHTML(pkg.id)}">
-          <span class="quick-tone"></span>${escapeHTML(pkg.name)}
+          <span class="quick-tone"></span>${escapeHTML(getPackageDisplayName(pkg))}
           ${icon('chevron-right')}
         </button>`).join('');
       const itemChips = quickEntries.map(({ pkg, item }) => `
@@ -2853,7 +2989,7 @@
 
     const groupsMarkup = Array.from(grouped.values()).map(({ pkg, items }) => `
       <section class="search-result-group">
-        <div class="search-result-group-head tone-${pkgTone(pkg)}"><span></span>${escapeHTML(pkg.name)}<b>· ${items.length}</b></div>
+        <div class="search-result-group-head tone-${pkgTone(pkg)}"><span></span>${escapeHTML(getPackageDisplayName(pkg))}<b>· ${items.length}</b></div>
         <div class="search-result-list">
           ${items.map((item) => {
             const category = catInfo(item.cat);
@@ -2905,6 +3041,7 @@
 
     if (sheet.kind === 'item') renderItemSheet(sheet);
     else if (sheet.kind === 'package') renderPackageSheet(sheet);
+    else if (sheet.kind === 'transfer') renderTransferSheet(sheet);
     else if (sheet.kind === 'todo') renderTodoSheet(sheet);
     else if (sheet.kind === 'todoList') renderTodoListSheet(sheet);
     else if (sheet.kind === 'expenseTripDate') renderExpenseTripDateSheet(sheet);
@@ -2970,8 +3107,8 @@
     if (!body || !pkg) return;
     const existingNames = new Set(pkg.items.map((item) => item.name));
     const suggestions = DEFAULT_SUGGESTIONS.filter((name) => !existingNames.has(name)).slice(0, 6);
-    const packageOptions = state.packages.map((entry) => `
-      <option value="${escapeHTML(entry.id)}" ${entry.id === draft.packageId ? 'selected' : ''}>${escapeHTML(entry.name)}</option>`).join('');
+    const packageOptions = getPackagesInDisplayOrder().map((entry) => `
+      <option value="${escapeHTML(entry.id)}" ${entry.id === draft.packageId ? 'selected' : ''}>${escapeHTML(getPackageDisplayName(entry))}</option>`).join('');
     const categoryMarkup = CATEGORIES.map((category) => `
       <button class="cat-choice ${draft.cat === category.key ? 'is-active' : ''}" type="button" data-cat="${category.key}">
         ${icon(category.icon)}<span>${category.label}</span>
@@ -2991,6 +3128,7 @@
             <select id="itemPackage" aria-label="所属包裹">${packageOptions}</select>
             ${icon('chevron-down')}
           </div>
+          ${draft.mode === 'edit' ? '<p class="hint" style="margin-top:6px">换一个包裹，就会把这件物品移过去。</p>' : ''}
         </div>
         <div class="field">
           <div class="field-label">分类 <span class="optional">用来配图标</span></div>
@@ -3852,10 +3990,117 @@
     }
   }
 
+  /* ----- Move items / nested packages ----- */
+
+  function openTransferSheet(sourceId) {
+    const source = getPackageById(sourceId);
+    if (!source) return;
+    if (!source.items.length) {
+      showToast('这个包裹还没有直接物品');
+      return;
+    }
+    const targets = getPackagesInDisplayOrder().filter((pkg) => pkg.id !== source.id);
+    if (!targets.length) {
+      showToast('还没有别的包裹可以接收');
+      return;
+    }
+    openSheet({
+      kind: 'transfer',
+      title: '转移物品',
+      subtitle: `把「${source.name}」的 ${source.items.length} 件直接物品移到另一个包裹`,
+      data: { sourceId }
+    });
+  }
+
+  function transferTargetMarkup(pkg, parent = null) {
+    const direct = pkg.items.length;
+    const label = parent ? `${parent.name} / ${pkg.name}` : pkg.name;
+    return `
+      <button class="transfer-target tone-${pkgTone(pkg)}" type="button" data-action="transfer-target" data-package-id="${escapeHTML(pkg.id)}">
+        <span class="transfer-icon" aria-hidden="true">${icon(pkgIconKey(pkg))}</span>
+        <span class="transfer-copy">
+          <strong>${escapeHTML(label)}</strong>
+          <small>${direct ? `${direct} 件直接物品` : '空包裹'}</small>
+        </span>
+        ${icon('chevron-right')}
+      </button>`;
+  }
+
+  function renderTransferSheet(sheet) {
+    const body = $('#sheetBody');
+    const source = getPackageById(sheet.data && sheet.data.sourceId);
+    if (!body) return;
+    if (!source) {
+      body.innerHTML = `<p class="confirm-text">这个包裹已经不存在了。</p>`;
+      return;
+    }
+    const topLevelTargets = getTopLevelPackages().filter((pkg) => pkg.id !== source.id);
+    const childTargets = [];
+    for (const parent of getTopLevelPackages()) {
+      for (const child of getChildPackages(parent.id)) {
+        if (child.id !== source.id) childTargets.push({ parent, child });
+      }
+    }
+    const hint = getChildPackages(source.id).length
+      ? '只移动本包的直接物品；子包裹里的物品不会被移动。'
+      : '单个物品也可以在「编辑物品 → 放进哪个包裹」里移动。';
+    body.innerHTML = `
+      <p class="transfer-hint">${escapeHTML(hint)}</p>
+      ${topLevelTargets.length ? `
+        <section class="transfer-group">
+          <p class="transfer-group-label">一级包裹</p>
+          <div class="transfer-list">${topLevelTargets.map((pkg) => transferTargetMarkup(pkg)).join('')}</div>
+        </section>` : ''}
+      ${childTargets.length ? `
+        <section class="transfer-group">
+          <p class="transfer-group-label">子包裹</p>
+          <div class="transfer-list">${childTargets.map(({ parent, child }) => transferTargetMarkup(child, parent)).join('')}</div>
+        </section>` : ''}`;
+  }
+
+  function transferPackageItems(sourceId, targetId) {
+    const source = getPackageById(sourceId);
+    const target = getPackageById(targetId);
+    if (!source || !target || source.id === target.id) return;
+    const moved = source.items.splice(0);
+    if (!moved.length) {
+      showToast('这个包裹没有可转移的直接物品');
+      return;
+    }
+    const movedIds = new Set(moved.map((item) => item.id));
+    target.items.push(...moved);
+    saveState();
+    haptic(14);
+    detailFilter = 'all';
+    renderHome();
+    const page = getPageLayer();
+    if (page && page.type === 'detail') renderDetail(page);
+    closeTopLayer();
+    showToast(`已将 ${moved.length} 件物品转移到「${target.name}」`, '撤销', () => {
+      const liveSource = getPackageById(sourceId);
+      const liveTarget = getPackageById(targetId);
+      if (!liveSource || !liveTarget) return;
+      liveTarget.items = liveTarget.items.filter((item) => !movedIds.has(item.id));
+      liveSource.items.push(...moved);
+      saveState();
+      renderHome();
+      const activePage = getPageLayer();
+      if (activePage && activePage.type === 'detail') renderDetail(activePage);
+      announce(`已撤销转移到${target.name}`);
+    }, 5200);
+    announce(`已将 ${moved.length} 件物品转移到${target.name}`);
+  }
+
   /* ----- Package editor ----- */
 
-  function openPackageSheet(packageId = null) {
+  function openPackageSheet(packageId = null, options = {}) {
     if (packageId && !getPackageById(packageId)) return;
+    const parent = !packageId && options.parentId ? getPackageById(options.parentId) : null;
+    const parentId = parent && !parent.parentId ? parent.id : null;
+    if (options.parentId && !parentId) {
+      showToast('只能在第一级包裹下面创建子包裹');
+      return;
+    }
     if (!packageId && state.packages.length >= MAX_PACKAGES) {
       showToast(`最多只能建 ${MAX_PACKAGES} 个包裹`);
       return;
@@ -3864,20 +4109,25 @@
     const draft = pkg ? {
       mode: 'edit',
       id: pkg.id,
+      parentId: pkg.parentId || null,
       name: pkg.name,
       icon: pkg.icon,
       color: pkg.color
     } : {
       mode: 'create',
       id: null,
+      parentId,
       name: '',
       icon: 'luggage',
       color: PACKAGE_COLORS[state.packages.length % PACKAGE_COLORS.length].key
     };
+    const isChild = Boolean(parentId);
     openSheet({
       kind: 'package',
-      title: pkg ? '编辑包裹' : '新建包裹',
-      subtitle: pkg ? `${pkg.items.length} 件物品 · 可以改名换图标` : '给包裹起个名字，再选一个图标',
+      title: pkg ? '编辑包裹' : (isChild ? '新建子包裹' : '新建包裹'),
+      subtitle: pkg
+        ? `${pkg.items.length} 件直接物品 · 可以改名换图标`
+        : (isChild ? `放进「${parent.name}」，例如洗漱包、数码包` : '给包裹起个名字，再选一个图标'),
       data: draft
     });
   }
@@ -3903,6 +4153,7 @@
     const iconChoices = PACKAGE_ICONS.map((entry) => `
       <button class="icon-choice ${draft.icon === entry.key ? 'is-active' : ''}" type="button" data-pkg-icon="${entry.key}" aria-label="${entry.label}" aria-pressed="${draft.icon === entry.key}">
         ${icon(entry.key)}
+        <span class="icon-choice-label">${entry.label}</span>
       </button>`).join('');
     const colorChoices = PACKAGE_COLORS.map((color) => `
       <button class="color-choice tone-${color.key} ${draft.color === color.key ? 'is-active' : ''}" type="button" data-pkg-color="${color.key}" aria-label="${color.label}" aria-pressed="${draft.color === color.key}">
@@ -3914,7 +4165,7 @@
         ${packagePreviewMarkup(draft, pkg)}
         <div class="field">
           <label for="packageName">包裹名称</label>
-          <input class="text-input" id="packageName" type="text" maxlength="20" autocomplete="off" placeholder="例如：行李箱" value="${escapeHTML(draft.name)}">
+          <input class="text-input" id="packageName" type="text" maxlength="20" autocomplete="off" placeholder="${draft.parentId ? '例如：洗漱包、数码包' : '例如：行李箱'}" value="${escapeHTML(draft.name)}">
         </div>
         <div class="field">
           <div class="field-label">图标</div>
@@ -3926,7 +4177,7 @@
         </div>
         <div class="form-actions">
           <button class="button button-ghost button-cancel" type="button" data-close-sheet>取消</button>
-          <button class="button button-primary button-save" type="submit">${draft.mode === 'edit' ? '保存修改' : '创建包裹'}</button>
+          <button class="button button-primary button-save" type="submit">${draft.mode === 'edit' ? '保存修改' : (draft.parentId ? '创建子包裹' : '创建包裹')}</button>
         </div>
         ${draft.mode === 'edit' ? `<button class="danger-link" type="button" data-action="request-delete-package">${icon('trash')}删除这个包裹</button>` : ''}
       </form>`;
@@ -4014,6 +4265,9 @@
       const pkg = {
         id: makeId('pkg'),
         name,
+        parentId: draft.parentId && getPackageById(draft.parentId) && !getPackageById(draft.parentId).parentId
+          ? draft.parentId
+          : null,
         icon: PACKAGE_ICON_KEYS.has(draft.icon) ? draft.icon : 'luggage',
         color: PACKAGE_COLOR_KEYS.has(draft.color) ? draft.color : 'orange',
         items: [],
@@ -4023,19 +4277,23 @@
       saveState();
       haptic(12);
       renderHome();
+      const page = getPageLayer();
+      if (page && page.type === 'detail') renderDetail(page);
       closeTopLayer();
-      showToast(`「${name}」已建好，可以加物品了`);
-      announce(`已新建包裹${name}`);
+      showToast(pkg.parentId ? `子包裹「${name}」已建好` : `「${name}」已建好，可以加物品了`);
+      announce(pkg.parentId ? `已在${getPackageById(pkg.parentId).name}下新建子包裹${name}` : `已新建包裹${name}`);
     }
   }
 
   function openDeletePackageConfirm(packageId) {
     const pkg = getPackageById(packageId);
     if (!pkg) return;
-    const snapshot = {
-      pkg: JSON.parse(JSON.stringify(pkg)),
-      index: state.packages.findIndex((entry) => entry.id === pkg.id)
-    };
+    const children = getChildPackages(pkg.id);
+    const deleteIds = new Set([pkg.id, ...children.map((child) => child.id)]);
+    const itemCount = state.packages
+      .filter((entry) => deleteIds.has(entry.id))
+      .reduce((sum, entry) => sum + entry.items.length, 0);
+    const snapshot = JSON.parse(JSON.stringify(state.packages));
     replaceSheet({
       kind: 'confirm',
       title: '删除这个包裹？',
@@ -4043,7 +4301,7 @@
       data: {
         visual: 'danger',
         visualIcon: 'trash',
-        text: `「<strong>${escapeHTML(pkg.name)}</strong>」里的 <strong>${pkg.items.length} 件物品</strong>也会一起删除。删除后仍可撤销。`,
+        text: `「<strong>${escapeHTML(pkg.name)}</strong>」${children.length ? `和它的 <strong>${children.length} 个子包裹</strong>` : ''}里的 <strong>${itemCount} 件物品</strong>也会一起删除。删除后仍可撤销。`,
         confirmText: '删除包裹',
         cancelText: '再想想',
         onConfirm: () => {
@@ -4052,13 +4310,13 @@
             closeTopLayer();
             return;
           }
-          state.packages.splice(index, 1);
+          state.packages = state.packages.filter((entry) => !deleteIds.has(entry.id));
           saveState();
           haptic(16);
           renderHome();
           closeAllLayers();
           showToast(`已删除「${pkg.name}」`, '撤销', () => {
-            state.packages.splice(Math.min(snapshot.index, state.packages.length), 0, snapshot.pkg);
+            state.packages = snapshot;
             saveState();
             renderHome();
             announce(`已恢复包裹${pkg.name}`);
@@ -4353,7 +4611,7 @@
         showToast(`物品全部带齐，还有 ${todosLeft} 项待办`, '', null, 4200);
         announce(`物品全部带齐，还有 ${todosLeft} 项待办`);
       }
-    } else if (item.checked && getPackageStats(pkg).remaining === 0) {
+    } else if (item.checked && getPackageSubtreeStats(pkg).remaining === 0) {
       showToast(`「${pkg.name}」已全部带齐`, '', null, 2600);
       announce(`「${pkg.name}」已全部带齐，还差 ${after.remaining} 件`);
     } else {
@@ -4436,6 +4694,21 @@
       case 'add-package':
         openPackageSheet();
         break;
+      case 'add-child-package': {
+        const parent = getPackageById(packageId);
+        if (parent && !getPackageParent(parent)) openPackageSheet(null, { parentId: parent.id });
+        break;
+      }
+      case 'transfer-items':
+        openTransferSheet(packageId);
+        break;
+      case 'transfer-target': {
+        const sheet = getSheetLayer() && getSheetLayer().sheet;
+        if (sheet && sheet.kind === 'transfer' && sheet.data) {
+          transferPackageItems(sheet.data.sourceId, packageId);
+        }
+        break;
+      }
       case 'toggle-fixed-chip':
         toggleFixedChip(packageId, itemId);
         break;
@@ -4843,8 +5116,9 @@
     on('#expenseBtn', 'click', openExpensePage);
     on('#footerBackupBtn', 'click', () => openSettings({ scrollToData: true }));
     on('#addFab', 'click', () => {
-      if (!state.packages.length) openPackageSheet();
-      else openItemSheet(state.packages[0].id);
+      const topLevelPackages = getTopLevelPackages();
+      if (!topLevelPackages.length) openPackageSheet();
+      else openItemSheet(topLevelPackages[0].id);
     });
     on('#continueBtn', 'click', handleContinue);
     on('#newTripBtn', 'click', openNewTripSheet);
