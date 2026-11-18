@@ -1,5 +1,5 @@
 /* 行囊 · 出差清点 — offline service worker */
-const CACHE_NAME = 'xingnang-v1.6.0';
+const CACHE_NAME = 'xingnang-v1.6.1';
 const APP_SHELL = [
   './',
   './index.html',

@@ -7,7 +7,7 @@
 
   const APP_TITLE = '行囊 · 出差清点';
   const STORAGE_KEY = 'xingnang.packing.v1';
-  const VERSION = '1.6.0';
+  const VERSION = '1.6.1';
   const MAX_PACKAGES = 40;
   const MAX_ITEMS_PER_PACKAGE = 250;
   const MAX_TOTAL_ITEMS = 600;
@@ -2731,8 +2731,9 @@
 
   function renderExpenseOverview(trip, summary) {
     const active = state.expense.activeTripId === trip.id;
-    const dayList = summary.daily.length
-      ? `<div class="expense-day-list">${summary.daily.map((item) => expenseDayRowMarkup(item, active)).join('')}</div>`
+    const dailyRows = summary.daily.slice().sort((a, b) => b.date.localeCompare(a.date));
+    const dayList = dailyRows.length
+      ? `<div class="expense-day-list">${dailyRows.map((item) => expenseDayRowMarkup(item, active)).join('')}</div>`
       : `<div class="expense-empty-small">${icon('receipt')}<p>还没有可计算的出差日期</p></div>`;
     return `
       ${expenseHeroMarkup(summary)}
@@ -2743,7 +2744,7 @@
       <section class="expense-section" aria-labelledby="expenseDailyHeading">
         <div class="expense-section-head">
           <h2 id="expenseDailyHeading">${icon('receipt')} 每日明细 <span class="expense-count-pill">${summary.totalDays}</span></h2>
-          <span class="section-note">${active ? '点按切换国内 / 国外' : '已完成，只读'}</span>
+          <span class="section-note">最新在上 · ${active ? '点按切换国内 / 国外' : '已完成，只读'}</span>
         </div>
         ${dayList}
       </section>

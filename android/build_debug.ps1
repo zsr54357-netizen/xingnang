@@ -73,8 +73,8 @@ $generatedJava = Join-Path $work 'gen'
     --manifest $manifest `
     --min-sdk-version 29 `
     --target-sdk-version 34 `
-    --version-code 5 `
-    --version-name '1.3.0' `
+    --version-code 6 `
+    --version-name '1.3.1' `
     --java $generatedJava `
     -A $assets `
     -R $compiledRes `
@@ -131,7 +131,7 @@ if (-not (Test-Path $debugStore)) {
     if ($LASTEXITCODE -ne 0) { throw '生成 debug keystore 失败' }
 }
 
-$apk = Join-Path $outputDir '行囊-debug-1.3.0.apk'
+$apk = Join-Path $outputDir '行囊-debug-1.3.1.apk'
 & (Join-Path $buildTools 'apksigner.bat') sign `
     --ks $debugStore `
     --ks-key-alias androiddebugkey `
